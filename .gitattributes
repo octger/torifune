@@ -1,0 +1,18 @@
+# Normalize line endings for cross-platform contributors
+* text=auto
+
+*.ps1 text eol=crlf
+*.cs text
+*.csproj text
+*.props text
+*.json text
+*.jsonc text
+*.md text
+*.yml text
+*.axaml text
+*.manifest text
+*.slnx text
+
+*.png binary
+*.ico binary
+*.zip binary

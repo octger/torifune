@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Torifune.Core/Torifune.Core.csproj" />
+    <Project Path="src/Torifune.Desktop/Torifune.Desktop.csproj" />
+    <Project Path="src/Torifune.ViewModels/Torifune.ViewModels.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Torifune.Core.Tests/Torifune.Core.Tests.csproj" />
+  </Folder>
+</Solution>

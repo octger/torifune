@@ -1,0 +1,10 @@
+{
+  "config": {
+    "MD013": false
+  },
+  "ignores": [
+    "**/bin/**",
+    "**/obj/**",
+    "artifacts/**"
+  ]
+}

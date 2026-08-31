@@ -1,0 +1,850 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Torifune.ViewModels"
+        xmlns:conv="using:Torifune.Desktop.Converters"
+        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+        mc:Ignorable="d" d:DesignWidth="1360" d:DesignHeight="1000"
+        x:Name="Root"
+        x:Class="Torifune.Desktop.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Width="1360" Height="1000"
+        MinWidth="1080" MinHeight="840"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/torifune-icon.ico"
+        Title="Torifune">
+
+    <Window.Resources>
+        <conv:FilePathToBitmapConverter x:Key="FilePathToBitmapConverter" />
+    </Window.Resources>
+
+    <Grid RowDefinitions="*,Auto">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid Margin="20" ColumnDefinitions="*,360" ColumnSpacing="16" IsVisible="{Binding IsReady}">
+            <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+                <Border Classes="card" Grid.Row="0">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="h1" Text="Torifune" />
+                        <TextBlock Classes="muted"
+                                   Text="URLを解析して、動画単体またはプレイリストをキュー管理します。" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" Grid.Row="1">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,8,260,16,Auto,8,*,16,Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="方式" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="2"
+                                      ItemsSource="{Binding FormatModes}"
+                                      SelectedItem="{Binding SelectedFormatMode}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Grid.Column="4" Text="映像ID" IsVisible="{Binding IsFormatListMode}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="6"
+                                      ItemsSource="{Binding AvailableVideoFormats}"
+                                      SelectedItem="{Binding SelectedVideoFormatOption}"
+                                      IsVisible="{Binding IsFormatListMode}"
+                                      IsEnabled="{Binding HasAvailableVideoFormats}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Grid.Column="8" Text="音声ID" IsVisible="{Binding IsFormatListMode}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="10"
+                                      ItemsSource="{Binding AvailableAudioFormats}"
+                                      SelectedItem="{Binding SelectedAudioFormatOption}"
+                                      IsVisible="{Binding IsFormatListMode}"
+                                      IsEnabled="{Binding HasAvailableAudioFormats}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding UrlInput}"
+                                 PlaceholderText="動画やプレイリストのURLを貼り付け"
+                                 IsEnabled="{Binding !IsAddingToQueue}">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding AnalyzeUrlCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+
+                        <StackPanel Grid.Row="2" Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="候補を解析" Command="{Binding AnalyzeUrlCommand}" />
+                                <Button Content="キューに追加" Classes="primary" Command="{Binding AddToQueueCommand}" />
+                                <Button Content="選択項目をキュー追加"
+                                        Command="{Binding AddSelectedPlaylistToQueueCommand}"
+                                        IsVisible="{Binding IsPlaylistDetected}" />
+                                <CheckBox Content="今回の追加で音声正規化"
+                                          IsChecked="{Binding NormalizeAudioForCurrent}"
+                                          VerticalAlignment="Center" />
+                                <CheckBox Content="FHD未満を1920x1080へ変換"
+                                          IsChecked="{Binding UpscaleToFhdForCurrent}"
+                                          VerticalAlignment="Center"
+                                          ToolTip.Tip="FHD未満の映像をアスペクト比維持・黒帯補完で1920x1080へ変換します。処理時間とファイルサイズが増加します。" />
+                                <Button Content="解析中止"
+                                        Command="{Binding AnalyzeUrlCancelCommand}"
+                                        IsVisible="{Binding IsAnalyzingUrl}" />
+                                <Button Content="追加中止"
+                                        Command="{Binding AddToQueueCancelCommand}"
+                                        IsVisible="{Binding IsAddingToQueue}" />
+                                <Button Content="プレイリスト追加中止"
+                                        Command="{Binding AddSelectedPlaylistToQueueCancelCommand}"
+                                        IsVisible="{Binding IsAddingPlaylistToQueue}" />
+                            </StackPanel>
+
+                            <Border Padding="12,10" CornerRadius="10" Background="{DynamicResource CardBackgroundBrush}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="muted" Text="取得範囲（任意）" />
+                                    <Grid ColumnDefinitions="Auto,8,120,8,Auto,8,120,8,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="開始" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="2" Text="{Binding StartTimeText}" PlaceholderText="00:00:00" />
+                                        <TextBlock Grid.Column="4" Text="終了" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="6" Text="{Binding EndTimeText}" PlaceholderText="00:00:00" />
+                                        <TextBlock Grid.Column="8" Classes="muted" Text="未指定時は全体を取得" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,8,*,8,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="保存先" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="2"
+                                                 Text="{Binding DefaultOutputDirectory}"
+                                                 PlaceholderText="保存先フォルダ (例: D:/VideoDownloads)"
+                                                 LostFocus="OutputDirectoryTextBox_LostFocus"
+                                                 ToolTip.Tip="動画の保存先フォルダを任意に指定できます。変更内容は自動保存され、次回起動時にも使用されます。" />
+                                        <Button Grid.Column="4" Content="参照..." Click="BrowseOutputDirectory_Click" />
+                                    </Grid>
+                                    <TextBlock Classes="muted"
+                                               FontSize="11"
+                                               Text="この保存先は次のキュー追加から反映され、次回起動時にも使用されます。"
+                                               TextWrapping="Wrap" />
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding SelectionTimeMessage}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1"
+                                                Content="Retry"
+                                                Command="{Binding RetryPreviewCommand}"
+                                                IsVisible="{Binding HasPreviewGenerationError}" />
+                                        <Button Grid.Column="2"
+                                            Content="正規化表示を反映"
+                                            Command="{Binding RefreshPreviewNormalizationCommand}" />
+                                    </Grid>
+                                        <StackPanel Orientation="Vertical" Spacing="4" IsVisible="{Binding IsPreviewSourceDownloading}">
+                                            <TextBlock Classes="muted" Text="{Binding PreviewSourceProgressText}" FontSize="11" />
+                                            <ProgressBar Maximum="100"
+                                                         Height="6"
+                                                         Value="{Binding PreviewSourceProgressPercent}"
+                                                         IsVisible="{Binding PreviewSourceProgressPercent, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            <ProgressBar Height="6"
+                                                         IsIndeterminate="True"
+                                                         IsVisible="{Binding PreviewSourceProgressPercent, Converter={x:Static ObjectConverters.IsNull}}" />
+                                            <TextBlock Classes="muted"
+                                                       Text="{Binding PreviewSourceEtaText}"
+                                                       FontSize="11"
+                                                       IsVisible="{Binding HasPreviewSourceEta}" />
+                                            <TextBlock Classes="muted"
+                                                       Text="{Binding PreviewSourceSpeedText}"
+                                                       FontSize="11"
+                                                       IsVisible="{Binding HasPreviewSourceSpeed}" />
+                                        </StackPanel>
+                                    <Border Padding="10"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource CardBackgroundBrush}"
+                                            MinHeight="180"
+                                            IsVisible="{Binding HasPreviewVideo}">
+                                        <StackPanel Spacing="8">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="10" RowDefinitions="Auto" RowSpacing="4">
+                                                <Border Grid.Column="0"
+                                                        Padding="10,8"
+                                                        CornerRadius="8"
+                                                        Background="#1F2A3A">
+                                                    <StackPanel Spacing="6">
+                                                        <TextBlock Text="再生" Foreground="#9FD4FF" FontSize="11" FontWeight="SemiBold" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Content="-3s" Command="{Binding SeekPreviewBackwardCommand}" />
+                                                            <Button Content="+3s" Command="{Binding SeekPreviewForwardCommand}" />
+                                                            <Button Content="{Binding PreviewPlayPauseButtonText}" Command="{Binding TogglePreviewPlaybackCommand}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="1"
+                                                        Padding="10,8"
+                                                        CornerRadius="8"
+                                                        Background="#1E3227">
+                                                    <StackPanel Spacing="6">
+                                                        <TextBlock Text="区間移動" Foreground="#9DE2BB" FontSize="11" FontWeight="SemiBold" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Content="開始へ" Command="{Binding SeekPreviewToStartCommand}" />
+                                                            <Button Content="終了へ" Command="{Binding SeekPreviewToEndCommand}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="2"
+                                                        Padding="10,8"
+                                                        CornerRadius="8"
+                                                        Background="#342A1F">
+                                                    <StackPanel Spacing="6">
+                                                        <TextBlock Text="現在位置を反映" Foreground="#FFD2A1" FontSize="11" FontWeight="SemiBold" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Content="現在→開始" Command="{Binding SetStartTimeFromPreviewPositionCommand}" />
+                                                            <Button Content="現在→終了" Command="{Binding SetEndTimeFromPreviewPositionCommand}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                                <TextBlock Grid.Column="4" Classes="muted" Text="{Binding PreviewPositionText}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                    <TextBlock Classes="muted" Text="区間:" />
+                                                    <TextBlock Classes="muted" Text="{Binding StartTimeText}" />
+                                                    <TextBlock Classes="muted" Text="-" />
+                                                    <TextBlock Classes="muted" Text="{Binding EndTimeText}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto,6,120" ColumnSpacing="8" VerticalAlignment="Center">
+                                                <Slider x:Name="PreviewSeekBar"
+                                                        Grid.Column="0"
+                                                        Minimum="0"
+                                                        Maximum="{Binding PreviewDurationSeconds}"
+                                                    Value="{Binding PreviewCurrentPositionSeconds, Mode=OneWay}"
+                                                        PointerPressed="PreviewSeekBar_PointerPressed"
+                                                    PointerReleased="PreviewSeekBar_PointerReleased"
+                                                    PointerCaptureLost="PreviewSeekBar_PointerCaptureLost"
+                                                    ValueChanged="PreviewSeekBar_ValueChanged" />
+                                                <Button Grid.Column="1" Content="{Binding PreviewVolumeButtonText}" Command="{Binding TogglePreviewMuteCommand}" />
+                                                <Slider Grid.Column="3"
+                                                        Minimum="0"
+                                                        Maximum="100"
+                                                        Value="{Binding PreviewPlaybackVolumePercent}" />
+                                            </Grid>
+                                            <TextBlock Classes="muted" Text="{Binding PreviewVolumeDisplayText}" HorizontalAlignment="Right" FontSize="11" />
+                                            <Grid Height="170">
+                                                <Border Background="#10151C" CornerRadius="6">
+                                                    <vlc:VideoView x:Name="PreviewVideoView"
+                                                                   IsVisible="{Binding HasPreviewVideo}">
+                                                        <vlc:VideoView.Content>
+                                                            <Border Background="#01000000"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    VerticalAlignment="Stretch"
+                                                                    PointerPressed="PreviewVideoOverlay_PointerPressed" />
+                                                        </vlc:VideoView.Content>
+                                                    </vlc:VideoView>
+                                                </Border>
+                                                <Border Background="#66000000"
+                                                        CornerRadius="6"
+                                                        Padding="10,6"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        IsHitTestVisible="False"
+                                                        IsVisible="{Binding HasPreviewStatusOverlay}">
+                                                    <TextBlock Text="{Binding PreviewStatusOverlayText}" Foreground="White" FontWeight="SemiBold" />
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="10"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource CardBackgroundBrush}"
+                                            MinHeight="180"
+                                            IsVisible="{Binding !HasPreviewVideo}">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                            <TextBlock Text="動画プレビューはまだありません" Classes="muted" />
+                                            <TextBlock Text="候補解析後に軽量確認用動画を自動準備し、先頭フレームで停止表示します" Classes="muted" FontSize="11" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Padding="10"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource CardBackgroundBrush}">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Text="音量ヒストグラム（正規化前/後）" FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                                <TextBlock Text="LUFS"
+                                                           FontWeight="SemiBold"
+                                                           ToolTip.Tip="LUFS: 人の聴感に近い平均ラウドネスです。値が0に近いほど大きく、配信では -16 LUFS 前後がよく使われます。" />
+                                                <TextBlock Text="TP"
+                                                           FontWeight="SemiBold"
+                                                           ToolTip.Tip="TP (True Peak): サンプル間ピークを含む最大ピーク値です。0 dBTP を超えるとクリップ歪みのリスクが高まります。" />
+                                                <TextBlock Text="LRA"
+                                                           FontWeight="SemiBold"
+                                                           ToolTip.Tip="LRA: ラウドネスの揺れ幅(ダイナミクス)です。値が大きいほど抑揚が大きく、小さいほど均一です。" />
+                                            </StackPanel>
+                                            <TextBlock Classes="muted" Text="{Binding PreviewHistogramMessage}" FontSize="11" />
+                                            <TextBlock Classes="muted" Text="{Binding PreviewNormalizationProgressText}" FontSize="11" IsVisible="{Binding IsPreviewHistogramGenerating}" />
+                                            <TextBlock Classes="muted" Text="{Binding PreviewHistogramAppliedRangeText}" FontSize="11" IsVisible="{Binding HasAppliedNormalizationRange}" />
+                                            <TextBlock Foreground="#FFC67C00"
+                                                       Text="開始/終了時刻が変わっているため、この表示は最新範囲とズレています。"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding IsPreviewNormalizationStale}" />
+                                            <Grid ColumnDefinitions="*,12,*" ColumnSpacing="12" IsVisible="{Binding HasPreviewHistogram}">
+                                                <Border Grid.Column="0" Padding="8" CornerRadius="6" Background="#10151C">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Text="正規化前" FontWeight="SemiBold" />
+                                                        <Grid Height="120"
+                                                              HorizontalAlignment="Stretch"
+                                                              ClipToBounds="True"
+                                                              SizeChanged="PreviewHistogramBeforeHost_SizeChanged">
+                                                            <Image Source="{Binding PreviewHistogramBeforeImagePath, Converter={StaticResource FilePathToBitmapConverter}}"
+                                                                   Stretch="Fill"
+                                                                   Width="{Binding PreviewHistogramBeforeDisplayWidth}"
+                                                                   Height="120"
+                                                                   HorizontalAlignment="Center" />
+                                                            <Canvas Width="{Binding PreviewHistogramBeforeDisplayWidth}" Height="120" IsHitTestVisible="False" HorizontalAlignment="Center">
+                                                                <Border Width="2"
+                                                                        Height="120"
+                                                                        Background="#FF42C1FF"
+                                                                        Canvas.Left="{Binding PreviewHistogramPlaybackMarkerLeft}" />
+                                                            </Canvas>
+                                                        </Grid>
+                                                        <TextBlock Classes="muted"
+                                                                Text="水色線: プレビューの現在再生位置"
+                                                                FontSize="10" />
+                                                        <TextBlock Classes="muted"
+                                                                   Text="{Binding PreviewHistogramBeforeMetricsLabel}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="2" Padding="8" CornerRadius="6" Background="#10151C">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Text="正規化後" FontWeight="SemiBold" />
+                                                        <Image Source="{Binding PreviewHistogramAfterImagePath, Converter={StaticResource FilePathToBitmapConverter}}"
+                                                               Stretch="Uniform"
+                                                               MaxHeight="120" />
+                                                        <TextBlock Classes="muted"
+                                                                   Text="{Binding PreviewHistogramAfterMetricsLabel}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                            <Border Padding="8"
+                                                    CornerRadius="6"
+                                                    Background="#10151C"
+                                                    IsVisible="{Binding HasPreviewHistogram}">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="差分" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding PreviewHistogramLufsDiffLabel}"
+                                                               Foreground="{Binding PreviewHistogramLufsDiffColor}"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding PreviewHistogramTpDiffLabel}"
+                                                               Foreground="{Binding PreviewHistogramTpDiffColor}"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding PreviewHistogramLraDiffLabel}"
+                                                               Foreground="{Binding PreviewHistogramLraDiffColor}"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Classes="muted"
+                                                       Text="ヒストグラムを生成中..."
+                                                       IsVisible="{Binding IsPreviewHistogramGenerating}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Classes="card" Grid.Row="2" IsVisible="{Binding IsPlaylistDetected}">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,8,Auto,8,Auto">
+                            <TextBlock Grid.Column="0" Classes="h2" Text="{Binding PlaylistTitle}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Text="選択中" Classes="muted" />
+                            <TextBlock Grid.Column="3" Text="{Binding SelectedPlaylistCount}" />
+                            <TextBlock Grid.Column="5" Text="件" Classes="muted" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="すべて選択" Command="{Binding SelectAllPlaylistEntriesCommand}" />
+                            <Button Content="選択解除" Command="{Binding ClearPlaylistSelectionCommand}" />
+                            <TextBlock Classes="muted" Text="項目ごとに方式を変えられます。" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="2" MaxHeight="180">
+                            <ListBox ItemsSource="{Binding PlaylistEntries}">
+                                <ListBox.Styles>
+                                    <Style Selector="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    </Style>
+                                </ListBox.Styles>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlaylistEntrySelectionViewModel">
+                                        <StackPanel Spacing="2">
+                                            <Grid ColumnDefinitions="Auto,8,*,8,220,8,Auto,8,Auto" Margin="0,4">
+                                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                <ComboBox Grid.Column="4"
+                                                          ItemsSource="{Binding FormatModes}"
+                                                          SelectedItem="{Binding SelectedFormatMode}">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <Button Grid.Column="6" Content="詳細"
+                                                        Command="{Binding $parent[Window].DataContext.OpenPlaylistEntryDetailCommand}"
+                                                        CommandParameter="{Binding}" />
+                                                <TextBlock Grid.Column="8" Text="{Binding DurationText}" Classes="muted" />
+                                            </Grid>
+                                            <TextBlock Margin="26,0,0,4" Text="{Binding FormatSummary}" Classes="muted" FontSize="11" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <Border Classes="card" Grid.Row="3">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding QueueMessage}" Classes="muted" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Text="{Binding QueueSummary}" FontWeight="SemiBold" />
+                        </Grid>
+                        <Grid Grid.Row="1">
+                            <TextBlock Text="URLを追加すると、ここに進捗が表示されます。"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Classes="muted" IsVisible="{Binding !HasQueueItems}" />
+
+                            <TabControl IsVisible="{Binding HasQueueItems}">
+                                <TabItem Header="進行中">
+                                    <Grid>
+                                        <TextBlock Text="進行中の項目はありません。"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Classes="muted"
+                                                   IsVisible="{Binding !HasActiveQueueItems}" />
+                                        <ListBox x:Name="ActiveQueueList"
+                                                 ItemsSource="{Binding ActiveQueueItems}"
+                                                 SelectedItem="{Binding SelectedQueueItem}"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 IsVisible="{Binding HasActiveQueueItems}">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem">
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                </Style>
+                                            </ListBox.Styles>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:DownloadQueueItemViewModel">
+                                                    <Border BorderBrush="{DynamicResource QueueItemDividerBrush}" BorderThickness="0,0,0,1" Padding="10,12">
+                                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6">
+                                                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                                <TextBlock Text="●" Foreground="{Binding StatusColor}" />
+                                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Spacing="1">
+                                                                <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" />
+                                                                <TextBlock Text="{Binding SecondaryStatusText}" Classes="muted" FontSize="11" HorizontalAlignment="Right" />
+                                                                <TextBlock Text="{Binding ElapsedText}" Classes="muted" FontSize="11" HorizontalAlignment="Right" />
+                                                            </StackPanel>
+
+                                                            <Grid Grid.Row="1" Grid.ColumnSpan="2">
+                                                                <ProgressBar Value="{Binding ProgressPercent}"
+                                                                             Maximum="100"
+                                                                             Height="6"
+                                                                             IsVisible="{Binding ShowMeasuredProgressBar}" />
+                                                                <ProgressBar Height="6"
+                                                                             IsIndeterminate="True"
+                                                                             IsVisible="{Binding ShowIndeterminateProgressBar}" />
+                                                            </Grid>
+
+                                                            <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DetailText}" Classes="muted" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Grid.Row="1"
+                                                                           Grid.Column="0"
+                                                                           Text="{Binding ProgressHintText}"
+                                                                           Classes="muted"
+                                                                           FontSize="11"
+                                                                           IsVisible="{Binding ShowIndeterminateProgressBar}"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                                    <Button Content="一時停止" Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" />
+                                                                    <Button Content="再開" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" />
+                                                                    <Button Content="中止" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" />
+                                                                    <Button Content="再試行" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" />
+                                                                    <Button Content="削除" Command="{Binding RemoveCommand}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                </TabItem>
+
+                                <TabItem Header="完了">
+                                    <Grid>
+                                        <TextBlock Text="完了済みの項目はありません。"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Classes="muted"
+                                                   IsVisible="{Binding !HasCompletedQueueItems}" />
+                                        <ListBox x:Name="CompletedQueueList"
+                                                 ItemsSource="{Binding CompletedQueueItems}"
+                                                 SelectedItem="{Binding SelectedQueueItem}"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 IsVisible="{Binding HasCompletedQueueItems}">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem">
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                </Style>
+                                            </ListBox.Styles>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:DownloadQueueItemViewModel">
+                                                    <Border BorderBrush="{DynamicResource QueueItemDividerBrush}" BorderThickness="0,0,0,1" Padding="10,12">
+                                                        <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6">
+                                                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                                <TextBlock Text="●" Foreground="{Binding StatusColor}" />
+                                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Spacing="1">
+                                                                <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" />
+                                                                <TextBlock Text="{Binding SecondaryStatusText}" Classes="muted" FontSize="11" HorizontalAlignment="Right" />
+                                                                <TextBlock Text="{Binding ElapsedText}" Classes="muted" FontSize="11" HorizontalAlignment="Right" />
+                                                            </StackPanel>
+
+                                                            <Grid Grid.Row="1" Grid.ColumnSpan="2">
+                                                                <ProgressBar Value="{Binding ProgressPercent}"
+                                                                             Maximum="100"
+                                                                             Height="6"
+                                                                             IsVisible="{Binding ShowMeasuredProgressBar}" />
+                                                                <ProgressBar Height="6"
+                                                                             IsIndeterminate="True"
+                                                                             IsVisible="{Binding ShowIndeterminateProgressBar}" />
+                                                            </Grid>
+
+                                                            <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto">
+                                                                <TextBlock Grid.Column="0" Text="{Binding DetailText}" Classes="muted" TextTrimming="CharacterEllipsis" />
+                                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                                    <Button Content="FHD変換"
+                                                                            Command="{Binding UpscaleToFhdCommand}"
+                                                                            IsVisible="{Binding CanUpscaleToFhd}"
+                                                                            ToolTip.Tip="元ファイルをアスペクト比維持で1920x1080へ変換します。" />
+                                                                    <Button Content="再生" Command="{Binding OpenOutputFileCommand}" IsVisible="{Binding CanOpenOutputFile}" />
+                                                                    <Button Content="フォルダ" Command="{Binding OpenOutputFolderCommand}" IsVisible="{Binding CanOpenOutputFolder}" />
+                                                                    <Button Content="削除" Command="{Binding RemoveCommand}" />
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Spacing="2" IsVisible="{Binding HasMediaTechnicalInfo}">
+                                                                <TextBlock Text="{Binding VideoResolutionText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding AudioTechnicalInfoText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding TotalBitrateText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="12">
+                <Border Classes="card" Grid.Row="0">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="h2" Text="コンテキスト" />
+                        <Grid ColumnDefinitions="Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="yt-dlp" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding YtdlpStatus}"
+                                       ToolTip.Tip="{Binding YtdlpStatus}"
+                                       Classes="muted"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="ffmpeg" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding FfmpegStatus}"
+                                       ToolTip.Tip="{Binding FfmpegStatus}"
+                                       Classes="muted"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="yt-dlp更新" Command="{Binding UpdateYtdlpCommand}" />
+                            <Button Content="デバッグコンソール" Click="OpenDebugConsole_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" Grid.Row="1" IsVisible="{Binding IsSettingsOpen}" MaxHeight="320">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                        <TextBlock Grid.Row="0" Classes="h2" Text="設定" />
+                        <Grid Grid.Row="1" ColumnDefinitions="Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="既定方式" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding FormatModes}" SelectedItem="{Binding DefaultFormatMode}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Grid.Row="2" ColumnDefinitions="Auto,8,110,12,*">
+                            <TextBlock Grid.Column="0" Text="並列数" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Column="2" Minimum="1" Maximum="8" Value="{Binding DefaultMaxConcurrentDownloads}" />
+                            <StackPanel Grid.Column="4" Spacing="4">
+                                <CheckBox Content="既定で音声正規化を有効" IsChecked="{Binding DefaultNormalizeAudio}" />
+                                <CheckBox Content="既定でFHD変換を有効"
+                                          IsChecked="{Binding DefaultUpscaleToFhd}"
+                                          ToolTip.Tip="新しく追加するFHD未満の映像を1920x1080へ変換します。" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="3" ColumnDefinitions="Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="プレビュー品質" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="2"
+                                      ItemsSource="{Binding PreviewQualityOptions}"
+                                      SelectedItem="{Binding SelectedPreviewQualityOption}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+
+                        <Grid Grid.Row="4" ColumnDefinitions="Auto,8,*">
+                            <TextBlock Grid.Column="0" Text="正規化プリセット" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="2"
+                                      ItemsSource="{Binding NormalizationPresets}"
+                                      SelectedItem="{Binding SelectedNormalizationPreset}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+
+                        <Grid Grid.Row="5" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,8,*">
+                                <TextBlock Grid.Column="0"
+                                           Text="LUFS"
+                                           VerticalAlignment="Center"
+                                           ToolTip.Tip="LUFS: 聴感に近い平均ラウドネスです。" />
+                                <NumericUpDown Grid.Column="2" Minimum="-70" Maximum="-5" Increment="0.5" Value="{Binding DefaultTargetLoudnessLufs}" FormatString="F1" />
+                            </Grid>
+                            <Grid Grid.Row="1" ColumnDefinitions="Auto,8,*">
+                                <TextBlock Grid.Column="0"
+                                           Text="TruePeak"
+                                           VerticalAlignment="Center"
+                                           ToolTip.Tip="TruePeak: サンプル間を含む最大ピークです。0 dBTP 超えを避けるために使います。" />
+                                <NumericUpDown Grid.Column="2" Minimum="-9" Maximum="0" Increment="0.1" Value="{Binding DefaultTargetTruePeakDb}" FormatString="F1" />
+                            </Grid>
+                            <Grid Grid.Row="2" ColumnDefinitions="Auto,8,*">
+                                <TextBlock Grid.Column="0"
+                                           Text="LRA"
+                                           VerticalAlignment="Center"
+                                           ToolTip.Tip="LRA: ラウドネスの揺れ幅です。抑揚の大きさを表します。" />
+                                <NumericUpDown Grid.Column="2" Minimum="1" Maximum="50" Increment="0.5" Value="{Binding DefaultTargetLoudnessRange}" FormatString="F1" />
+                            </Grid>
+                        </Grid>
+
+                        <Grid Grid.Row="6" ColumnDefinitions="*,8,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding DefaultOutputDirectory}" PlaceholderText="保存先フォルダ" />
+                            <Button Grid.Column="2" Content="参照..." Click="BrowseOutputDirectory_Click" />
+                        </Grid>
+
+                        <Grid Grid.Row="7" ColumnDefinitions="*,8,Auto,8,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding DefaultOutputTemplate}" PlaceholderText="%(title)s [%(id)s].%(ext)s" />
+                            <Button Grid.Column="2" Content="キャッシュ削除" Command="{Binding ClearPreviewCachesCommand}" />
+                            <Button Grid.Column="4" Content="保存" Classes="primary" Command="{Binding SaveSettingsCommand}" />
+                        </Grid>
+                        </Grid>
+                    </ScrollViewer>
+                </Border>
+
+                <Border Classes="card" Grid.Row="2">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="h2" Text="選択中アイテム" />
+                            <Button Grid.Column="1" Content="設定" Command="{Binding ToggleSettingsCommand}" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding SettingsMessage}" Classes="muted" TextWrapping="Wrap" />
+                        <Grid Grid.Row="2">
+                            <TextBlock Text="キュー項目を選択すると詳細が表示されます。"
+                                       Classes="muted"
+                                       IsVisible="{Binding !HasSelectedQueueItem}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                            <StackPanel IsVisible="{Binding HasSelectedQueueItem}" Spacing="8">
+                                <TextBlock Text="{Binding SelectedQueueItem.Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="状態" Classes="muted" />
+                                    <TextBlock Text="{Binding SelectedQueueItem.StatusText}" Foreground="{Binding SelectedQueueItem.StatusColor}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding SelectedQueueItem.DetailText}" Classes="muted" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SelectedQueueItem.VideoResolutionText}"
+                                           Classes="muted"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding SelectedQueueItem.HasMediaTechnicalInfo}" />
+                                <TextBlock Text="{Binding SelectedQueueItem.AudioTechnicalInfoText}"
+                                           Classes="muted"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding SelectedQueueItem.HasMediaTechnicalInfo}" />
+                                <TextBlock Text="{Binding SelectedQueueItem.TotalBitrateText}"
+                                           Classes="muted"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding SelectedQueueItem.HasMediaTechnicalInfo}" />
+                                <Button Content="FHDへ変換"
+                                    Command="{Binding SelectedQueueItem.UpscaleToFhdCommand}"
+                                    IsVisible="{Binding SelectedQueueItem.CanUpscaleToFhd}"
+                                    HorizontalAlignment="Left"
+                                    ToolTip.Tip="FHD未満の完了ファイルをアスペクト比維持で1920x1080へ変換します。" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Classes="toast" Margin="0,0,8,0" IsVisible="{Binding IsToastVisible}">
+                <TextBlock Foreground="{DynamicResource ToastForegroundBrush}" Text="{Binding ToastMessage}" />
+            </Border>
+
+            <Border Classes="card" Width="280" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,14,0,0"
+                    IsVisible="{Binding IsContextBusy}">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="90" Height="6" />
+                    <TextBlock Classes="muted" Text="処理中..." />
+                </StackPanel>
+            </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <Border Grid.RowSpan="2"
+                Background="{DynamicResource OverlayBackgroundBrush}"
+                IsVisible="{Binding IsPlaylistDetailOpen}">
+            <Border.KeyBindings>
+                <KeyBinding Gesture="Escape" Command="{Binding ClosePlaylistEntryDetailCommand}" />
+            </Border.KeyBindings>
+            <Border VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760" Width="720" Padding="24" Classes="card">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="h2" Text="プレイリスト項目の詳細設定" />
+                        <TextBlock Text="{Binding EditingPlaylistEntry.Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding EditingPlaylistEntry.FormatSummary}" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsLoadingPlaylistEntryDetail}">
+                        <ProgressBar IsIndeterminate="True" Width="90" Height="6" />
+                        <TextBlock Classes="muted" Text="候補を取得しています..." />
+                    </StackPanel>
+
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,8,*">
+                        <TextBlock Grid.Column="0" Text="映像ID" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="2"
+                                  ItemsSource="{Binding PlaylistDetailVideoFormats}"
+                                  SelectedItem="{Binding SelectedPlaylistDetailVideoFormatOption}"
+                                  IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto,8,*">
+                        <TextBlock Grid.Column="0" Text="音声ID" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="2"
+                                  ItemsSource="{Binding PlaylistDetailAudioFormats}"
+                                  SelectedItem="{Binding SelectedPlaylistDetailAudioFormatOption}"
+                                  IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+
+                    <CheckBox Grid.Row="2"
+                              Content="この項目のみ音声正規化を上書き"
+                              IsChecked="{Binding UsePlaylistDetailNormalizeOverride}"
+                              IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}" />
+                    <CheckBox Grid.Row="3"
+                              Content="音声正規化を有効にする"
+                              IsChecked="{Binding PlaylistDetailNormalizeAudioOverride}"
+                              IsVisible="{Binding UsePlaylistDetailNormalizeOverride}"
+                              IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}" />
+                </Grid>
+
+                    <TextBlock Text="{Binding PlaylistDetailMessage}" TextWrapping="Wrap" Classes="muted" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="適用" Classes="primary" Command="{Binding ApplyPlaylistEntryDetailCommand}" IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}" />
+                        <Button Content="同種へ一括適用" Command="{Binding ApplyPlaylistEntryDetailToSimilarCommand}" IsEnabled="{Binding !IsLoadingPlaylistEntryDetail}" />
+                        <Button Content="閉じる" Command="{Binding ClosePlaylistEntryDetailCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.RowSpan="2" Background="{DynamicResource OverlayBackgroundBrush}" IsVisible="{Binding IsSettingUp}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" MaxWidth="480" Classes="card">
+                <TextBlock Classes="h1" Text="Torifune" HorizontalAlignment="Center" />
+                <TextBlock Classes="muted" Text="依存ツールのセットアップ" HorizontalAlignment="Center" />
+                <ProgressBar Value="{Binding SetupProgress}" Maximum="100" Height="6" />
+                <TextBlock Text="{Binding SetupMessage}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                <Button Content="ダウンロードを中止" HorizontalAlignment="Center" Command="{Binding AcceptDependencyDownloadCancelCommand}" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.RowSpan="2" IsVisible="{Binding IsDependencyConsentRequired}">
+            <StackPanel Margin="48,32" Spacing="16" MaxWidth="760" HorizontalAlignment="Center" Classes="card">
+                <TextBlock Classes="h1" Text="依存ツールのダウンロード確認" />
+                <TextBlock Text="Torifune本体にはダウンロードエンジンを同梱していません。以下の未導入ツールが必要です。"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding MissingDependenciesText}" FontWeight="SemiBold" FontSize="16" />
+
+                <Separator />
+                <TextBlock Text="yt-dlp" FontWeight="SemiBold" />
+                <TextBlock Text="用途: Web動画・音声の取得。取得元: https://github.com/yt-dlp/yt-dlp/releases/latest" TextWrapping="Wrap" />
+                <TextBlock Text="ライセンス: 本体はUnlicense。公式Windows実行ファイルにはGPLv3+の依存コードが含まれます。" TextWrapping="Wrap" Classes="muted" />
+
+                <TextBlock Text="FFmpeg / FFprobe" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <TextBlock Text="用途: 映像・音声の結合、AAC変換、音声ノーマライズ。取得元: https://github.com/yt-dlp/FFmpeg-Builds/releases/latest" TextWrapping="Wrap" />
+                <TextBlock Text="ライセンス: 自動取得するGPLビルドにはGPLv3+が適用されます。Torifuneとは別プログラムとして保存・実行されます。"
+                           TextWrapping="Wrap" Classes="muted" />
+
+                <CheckBox Content="上記の用途、取得元、ライセンスを確認し、ダウンロードに同意します"
+                          IsChecked="{Binding HasAcceptedDependencyTerms}"
+                          Margin="0,8,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="同意してダウンロード" Classes="primary" Command="{Binding AcceptDependencyDownloadCommand}" />
+                    <Button Content="同意しない" Command="{Binding DeclineDependencyDownloadCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding DependencyConsentMessage}" TextWrapping="Wrap" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SystemControlBackgroundListLowBrush}"
+                Padding="10,6">
+            <TextBlock Text="Torifune" Classes="muted" HorizontalAlignment="Center" />
+        </Border>
+    </Grid>
+
+</Window>

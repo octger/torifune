@@ -1,0 +1,89 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Torifune.Desktop.App"
+             RequestedThemeVariant="Default">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <x:Double x:Key="SpaceXs">6</x:Double>
+            <x:Double x:Key="SpaceSm">10</x:Double>
+            <x:Double x:Key="SpaceMd">14</x:Double>
+            <x:Double x:Key="SpaceLg">20</x:Double>
+            <x:Double x:Key="CornerMd">10</x:Double>
+            <x:Double x:Key="CornerLg">14</x:Double>
+
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AccentStrongBrush">#FF1769AA</SolidColorBrush>
+                    <SolidColorBrush x:Key="PanelBackgroundBrush">#F6FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="PanelBorderBrush">#22000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="MutedTextBrush">#AA000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="QueueItemDividerBrush">#22000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="OverlayBackgroundBrush">#90000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToastBackgroundBrush">#EE232323</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToastForegroundBrush">#FFFFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="SuccessBrush">#FF1B8F4A</SolidColorBrush>
+                    <SolidColorBrush x:Key="WarningBrush">#FFC67C00</SolidColorBrush>
+                    <SolidColorBrush x:Key="ErrorBrush">#FFC7332D</SolidColorBrush>
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AccentStrongBrush">#FF4CA8E8</SolidColorBrush>
+                    <SolidColorBrush x:Key="PanelBackgroundBrush">#FF1E232A</SolidColorBrush>
+                    <SolidColorBrush x:Key="PanelBorderBrush">#40FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="MutedTextBrush">#B3FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="QueueItemDividerBrush">#33FFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="OverlayBackgroundBrush">#AA000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToastBackgroundBrush">#EE0F1318</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToastForegroundBrush">#FFFFFFFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="SuccessBrush">#FF56D38A</SolidColorBrush>
+                    <SolidColorBrush x:Key="WarningBrush">#FFFFB84D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ErrorBrush">#FFFF756E</SolidColorBrush>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+
+        <Style Selector="TextBlock.h1">
+            <Setter Property="FontSize" Value="27" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
+        <Style Selector="TextBlock.h2">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentStrongBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentStrongBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
+
+        <Style Selector="Border.toast">
+            <Setter Property="Background" Value="{DynamicResource ToastBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+    </Application.Styles>
+</Application>

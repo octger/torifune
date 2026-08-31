@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    env:
+      CI: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore locked dependencies
+        run: dotnet restore Torifune.slnx --locked-mode
+
+      - name: Verify formatting
+        run: dotnet format Torifune.slnx --verify-no-changes --no-restore
+
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli2@0.23.2 "**/*.md"
+
+      - name: Build release
+        run: dotnet build Torifune.slnx -c Release --no-restore /nr:false
+
+      - name: Test with coverage
+        run: dotnet test tests/Torifune.Core.Tests/Torifune.Core.Tests.csproj -c Release --no-build --collect:"XPlat Code Coverage" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: warn

@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      CI: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      SIGNING_CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE_BASE64 }}
+      TORIFUNE_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore locked dependencies
+        run: dotnet restore Torifune.slnx --locked-mode
+
+      - name: Test
+        run: dotnet test tests/Torifune.Core.Tests/Torifune.Core.Tests.csproj -c Release --no-restore /nr:false
+
+      - name: Build release archive
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $publishArguments = @{
+            Version = $version
+            OutputDirectory = 'artifacts/release'
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64)) {
+            $certificatePath = Join-Path $env:RUNNER_TEMP 'torifune-signing.pfx'
+            [IO.File]::WriteAllBytes(
+              $certificatePath,
+              [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+            $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signTool) {
+              throw 'signtool.exe was not found.'
+            }
+            $publishArguments.CertificatePath = $certificatePath
+            $publishArguments.SignToolPath = $signTool.FullName
+          }
+
+          try {
+            ./scripts/publish.ps1 @publishArguments
+          }
+          finally {
+            if ($certificatePath) {
+              Remove-Item -Force $certificatePath -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/release/*.zip
+            artifacts/release/*.sha256
