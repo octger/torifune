@@ -116,7 +116,7 @@ FHD未満の動画を1920x1080へ変換できます。
 ### 復元とビルド
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/octger/torifune.git
 cd torifune
 dotnet restore Torifune.slnx
 dotnet build Torifune.slnx -c Debug /nr:false
